@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- Configurações PWA via Data-URI (Resiliência de Protocolo) -->
+    <link id="pwa-manifest" rel="manifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Gestão Pro">
+    <meta name="theme-color" content="#020205">
+    
+    <title>Gestão Pro - Inteligência Financeira</title>
+    
+    <!-- Bibliotecas Externas (CDNs de Alta Performance) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --bg: #020205;
+            --glass: rgba(15, 23, 42, 0.75);
+            --border: rgba(255, 255, 255, 0.08);
+            --safe-top: env(safe-area-inset-top);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+            user-select: none;
+        }
+
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+        }
+
+        /* Estilização das Abas Ativas */
+        .tab-active-fixo { background: #6366f1; color: white; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+        .tab-active-planejado { background: #f59e0b; color: white; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+        .tab-active-poupanca { background: #06b6d4; color: white; box-shadow: 0 0 15px rgba(6, 182, 212, 0.4); }
+        
+        .tap-active:active { transform: scale(0.96); opacity: 0.8; }
+        .tap-active:disabled { opacity: 0.5; pointer-events: none; }
+
+        input, select, button { font-size: 16px !important; outline: none !important; }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .safe-pt { padding-top: calc(1rem + var(--safe-top)); }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* Nome Reluzente do Desenvolvedor */
+        .glow-text {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.9), 
+                         0 0 20px rgba(255, 255, 255, 0.6);
+            font-weight: 800;
+        }
+
+        #authOverlay, .modal-overlay {
+            display: flex;
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(2, 2, 5, 0.98);
+            backdrop-filter: blur(15px);
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-item { animation: fadeIn 0.4s ease-out forwards; }
+    </style>
+</head>
+<body class="pb-20">
+
+    <!-- Tela de Desbloqueio de Segurança -->
+    <div id="authOverlay">
+        <div class="max-w-sm w-full p-8 text-center space-y-8 animate-item">
+            <div class="bg-gradient-to-br from-indigo-500 to-emerald-600 p-6 rounded-[2.5rem] inline-block shadow-2xl">
+                <i data-lucide="shield-check" class="text-white w-12 h-12"></i>
+            </div>
+            <div class="space-y-2">
+                <h2 id="authTitle" class="text-2xl font-black text-white uppercase italic tracking-tight">Gestão Pro</h2>
+                <p id="authSub" class="text-slate-500 text-sm italic">Sua Carteira Digital Privada</p>
+            </div>
+            <div class="space-y-4">
+                <input id="masterPassword" type="password" placeholder="Sua Chave de Acesso" class="w-full bg-slate-900 border border-white/10 p-5 rounded-2xl text-center font-bold tracking-widest text-white focus:border-emerald-500 transition-all shadow-inner">
+                <button onclick="handleAuth()" id="authBtn" class="w-full py-5 bg-emerald-600 rounded-2xl font-black uppercase tracking-widest tap-active shadow-lg shadow-emerald-600/20">
+                    Acessar Carteira
+                </button>
+            </div>
+            <div class="pt-4 border-t border-white/5">
+                <p class="text-[10px] uppercase tracking-wider font-black">
+                    <span class="text-red-600">Desenvolvido por</span>
+                    <span class="glow-text ml-1">Joanathan de Sousa Galvão</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Gestão de Dados (Backup) -->
+    <div id="settingsModal" class="modal-overlay" style="display: none;">
+        <div class="max-w-sm w-full p-8 text-center space-y-8 animate-item glass rounded-[3rem]">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-black text-white uppercase italic">Configurações</h3>
+                <button onclick="toggleModal('settingsModal')" class="text-slate-500 p-2"><i data-lucide="x"></i></button>
+            </div>
+            <div class="space-y-4">
+                <button onclick="exportVault()" class="w-full py-4 bg-indigo-600 rounded-2xl font-black uppercase text-xs tracking-widest tap-active flex items-center justify-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Exportar Carteira
+                </button>
+                <label class="w-full py-4 bg-slate-800 border border-white/10 rounded-2xl font-black uppercase text-xs tracking-widest tap-active flex items-center justify-center gap-2 cursor-pointer">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Importar Backup (.gpro)
+                    <input type="file" id="importFile" class="hidden" accept=".gpro,.json" onchange="importVault(event)">
+                </label>
+                <button onclick="resetData()" class="w-full py-4 text-rose-500/50 hover:text-rose-500 font-black uppercase text-[10px] tracking-widest transition-colors">
+                    Limpar Banco Local
+                </button>
+            </div>
+            <p class="text-[9px] text-slate-600 uppercase font-black tracking-widest">Core Engine v5.0 Stable</p>
+        </div>
+    </div>
+
+    <!-- Aplicação Principal -->
+    <div id="mainApp" style="display: none;">
+        <div class="max-w-lg mx-auto px-4 safe-pt space-y-6">
+            
+            <header class="flex justify-between items-center py-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-gradient-to-br from-indigo-600 to-emerald-600 p-2.5 rounded-2xl shadow-lg">
+                        <i data-lucide="trending-up" class="text-white w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold text-white tracking-tight uppercase italic leading-none">Gestão <span class="text-emerald-500">Pro</span></h1>
+                        <p class="text-slate-500 text-[9px] font-black uppercase tracking-wider mt-1 italic">Inteligência Financeira</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleModal('settingsModal')" class="p-2 glass rounded-xl text-slate-400 tap-active">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="location.reload()" class="p-2 glass rounded-xl text-slate-400 tap-active">
+                        <i data-lucide="lock" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Painel de Balanço Mensal -->
+            <section class="glass p-5 rounded-[2rem] border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent shadow-xl">
+                <div class="flex justify-between items-end mb-4">
+                    <div class="space-y-1">
+                        <p class="text-[9px] font-black uppercase text-emerald-500 tracking-widest">Fluxo Mensal Protegido</p>
+                        <div class="flex items-center gap-2">
+                            <span class="text-2xl font-bold text-emerald-500">R$</span>
+                            <input id="incomeInput" type="number" inputmode="decimal" placeholder="0,00" class="bg-transparent text-4xl font-black outline-none w-full text-white placeholder-slate-800">
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[8px] text-slate-500 font-black uppercase tracking-widest leading-none mb-1">Saldo Livre</p>
+                        <p id="topBalance" class="text-xl font-black text-emerald-500 leading-none">R$ 0,00</p>
+                    </div>
+                </div>
+                <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                    <div id="usageBar" class="h-full bg-emerald-500 transition-all duration-700" style="width: 0%"></div>
+                </div>
+            </section>
+
+            <!-- Cards de Indicadores -->
+            <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                <div class="min-w-[130px] glass p-4 rounded-3xl border-l-4 border-indigo-500">
+                    <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Fixos</p>
+                    <p id="totalFixed" class="text-sm font-black text-white">R$ 0</p>
+                </div>
+                <div class="min-w-[130px] glass p-4 rounded-3xl border-l-4 border-amber-500">
+                    <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Programado</p>
+                    <p id="totalPlanned" class="text-sm font-black text-white">R$ 0</p>
+                </div>
+                <div class="min-w-[130px] glass p-4 rounded-3xl border-l-4 border-cyan-500">
+                    <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Poupado</p>
+                    <p id="totalSavings" class="text-sm font-black text-white">R$ 0</p>
+                </div>
+            </div>
+
+            <!-- Painel de Novo Lançamento -->
+            <section class="glass p-5 rounded-[2.5rem] shadow-2xl space-y-4">
+                <div class="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 gap-1">
+                    <button onclick="setTab('fixo')" id="tab-fixo" class="flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all tab-active-fixo tap-active">Fixo</button>
+                    <button onclick="setTab('planejado')" id="tab-planejado" class="flex-1 py-3 rounded-xl text-[9px] font-black uppercase text-slate-500 transition-all tap-active">Prog.</button>
+                    <button onclick="setTab('poupanca')" id="tab-poupanca" class="flex-1 py-3 rounded-xl text-[9px] font-black uppercase text-slate-500 transition-all tap-active">Poupança</button>
+                </div>
+                <div class="grid grid-cols-1 gap-4">
+                    <input id="descInput" type="text" placeholder="O que você comprou?" class="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl focus:border-emerald-500 outline-none transition text-sm text-white">
+                    <div class="flex gap-3">
+                        <input id="valInput" type="number" inputmode="decimal" placeholder="Valor R$" class="flex-1 bg-slate-950 border border-slate-800 p-4 rounded-2xl focus:border-emerald-500 outline-none transition text-sm text-white font-bold">
+                        <button onclick="addItem()" class="bg-indigo-600 text-white px-7 rounded-2xl flex items-center justify-center shadow-lg tap-active" id="mainSubmitBtn">
+                            <i data-lucide="plus" class="w-7 h-7"></i>
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <select id="catInput" class="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl focus:border-emerald-500 outline-none transition text-sm text-white appearance-none">
+                            <option value="Mercado">🛒 Mercado</option>
+                            <option value="Moradia">🏠 Moradia</option>
+                            <option value="Transporte">🚗 Transporte</option>
+                            <option value="Lazer">🍿 Lazer</option>
+                            <option value="Saúde">🏥 Saúde</option>
+                            <option value="Serviços">⚡ Contas</option>
+                            <option value="Investimento">💰 Investimento</option>
+                            <option value="Outros">📦 Outros</option>
+                        </select>
+                        <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500"><i data-lucide="chevron-down" class="w-4 h-4"></i></div>
+                    </div>
+                    <div id="parcelaArea" class="hidden">
+                        <div class="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                            <span class="text-xs font-bold text-slate-400 italic tracking-tight">Dividir em parcelas?</span>
+                            <input id="parcelaCount" type="number" value="1" min="1" class="w-12 bg-black/40 border border-white/10 p-1.5 rounded-lg text-center text-xs font-bold text-white">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Histórico de Movimentações -->
+            <section class="space-y-4">
+                <div class="flex justify-between items-end px-2">
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-slate-600 italic">Histórico Particular</h2>
+                    <span id="lastUpdatedLabel" class="text-[8px] text-slate-700 font-bold uppercase tracking-tighter">Sincronizado</span>
+                </div>
+                <div id="list" class="space-y-3 min-h-[50px]"></div>
+            </section>
+
+            <!-- Visualização de Alocação -->
+            <section class="glass p-8 rounded-[3rem] flex flex-col items-center pb-8 shadow-2xl">
+                <div class="relative w-full max-w-[180px]">
+                    <canvas id="chartCanvas"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span id="pctText" class="text-2xl font-black text-white leading-none">0%</span>
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Alocado</span>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="py-12 text-center pb-24">
+                <p class="text-[11px] uppercase tracking-wider font-black">
+                    <span class="text-red-600">Desenvolvido por</span>
+                    <span class="glow-text ml-1">Joanathan de Sousa Galvão</span>
+                </p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * @license
+         * Copyright (c) 2026 Joanathan de Sousa Galvão.
+         * Todos os direitos reservados.
+         *
+         * PROPRIEDADE EXCLUSIVA: Todo o código-fonte, arquitetura de criptografia, 
+         * lógica de banco de dados e interface contidos neste arquivo são protegidos por leis de 
+         * Direitos Autorais (Lei nº 9.609/98 e Lei nº 9.610/98).
+         *
+         * RESTRIÇÕES DE USO: Fica expressamente proibida a cópia, distribuição, 
+         * modificação, venda ou engenharia reversa deste código sem a autorização 
+         * PRÉVIA e POR ESCRITO do desenvolvedor acima mencionado.
+         *
+         * LICENÇA DE USO PESSOAL: O uso deste código é restrito ao contexto privado e 
+         * profissional do desenvolvedor, salvo contratos específicos de licenciamento.
+         *
+         * CONTATO PARA LICENCIAMENTO: [jhonsousa755@gmail.com]
+         */
+
+        // --- 1. CORE PWA (CONFIGURAÇÃO DINÂMICA) ---
+        const initPWA = () => {
+            try {
+                const manifest = {
+                    "name": "Gestão Pro",
+                    "short_name": "Gestão Pro",
+                    "start_url": window.location.href.split('?')[0],
+                    "display": "standalone",
+                    "background_color": "#020205",
+                    "theme_color": "#020205",
+                    "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/1611/1611154.png", "sizes": "512x512", "type": "image/png"}]
+                };
+                document.getElementById('pwa-manifest').setAttribute('href', 'data:application/json;base64,' + btoa(JSON.stringify(manifest)));
+
+                if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+                    const swCode = "self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));";
+                    const swBlob = new Blob([swCode], {type: 'text/javascript'});
+                    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+                }
+            } catch (e) {}
+        };
+        initPWA();
+
+        // --- 2. UTILITÁRIOS DE SEGURANÇA E PERFORMANCE ---
+        const escapeHTML = str => { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; };
+        
+        const debounce = (f, t = 500) => { 
+            let timer; 
+            return (...a) => { clearTimeout(timer); timer = setTimeout(() => f.apply(this, a), t); }; 
+        };
+
+        const bufToB64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+        const b64ToBuf = s => new Uint8Array(atob(s).split("").map(c => c.charCodeAt(0)));
+
+        // --- 3. MOTOR DE ARMAZENAMENTO ATÔMICO (INDEXEDDB) ---
+        const DB_NAME = 'GestaoPro_Production_V5';
+        const STORE_NAME = 'secure_vault';
+        const openDB = () => new Promise((res, rej) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            req.onsuccess = e => res(e.target.result);
+            req.onerror = e => rej(e.target.error);
+        });
+
+        async function saveToDB(obj) {
+            const dbI = await openDB();
+            return new Promise((res, rej) => {
+                const tx = dbI.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put({ id: 'active_session', ...obj });
+                tx.oncomplete = () => res();
+                tx.onerror = () => rej(tx.error);
+                tx.onabort = () => rej(new Error("Atomic Save Interrupted"));
+            });
+        }
+
+        async function getFromDB() {
+            const dbI = await openDB();
+            return new Promise(res => {
+                const req = dbI.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get('active_session');
+                req.onsuccess = () => res(req.result);
+                req.onerror = () => res(null);
+            });
+        }
+
+        // --- 4. CORE ENGINE CRIPTOGRÁFICO (AES-GCM + PBKDF2) ---
+        let sessionKey = null; 
+        let vaultSalt = null;
+        let db = { income: 0, items: [], tab: 'fixo', updatedAt: 0 };
+
+        async function deriveKey(pwd, salt) {
+            const enc = new TextEncoder();
+            const keyMat = await crypto.subtle.importKey("raw", enc.encode(pwd), "PBKDF2", false, ["deriveKey"]);
+            return crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+                keyMat, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptAndSave() {
+            if (!sessionKey || !vaultSalt) return;
+            db.updatedAt = Date.now();
+            const enc = new TextEncoder();
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sessionKey, enc.encode(JSON.stringify(db)));
+            
+            try {
+                await saveToDB({ data: cipher, iv, salt: vaultSalt });
+                refreshUI();
+            } catch (e) { console.error("Critical: Storage failed."); }
+        }
+
+        async function handleAuth() {
+            const btn = document.getElementById('authBtn');
+            const pwdInput = document.getElementById('masterPassword');
+            const pwd = pwdInput.value;
+            if (!pwd) return;
+
+            btn.innerText = "Protegendo Conexão..."; 
+            btn.disabled = true;
+
+            const vault = await getFromDB();
+            
+            setTimeout(async () => {
+                try {
+                    if (!vault) {
+                        if (confirm("Deseja criar esta senha como sua chave permanente?")) {
+                            vaultSalt = crypto.getRandomValues(new Uint8Array(16));
+                            sessionKey = await deriveKey(pwd, vaultSalt);
+                            db = { income: 0, items: [], tab: 'fixo', updatedAt: Date.now() };
+                            await encryptAndSave();
+                            unlockUI();
+                        } else { btn.innerText = "Acessar Carteira"; btn.disabled = false; }
+                    } else {
+                        vaultSalt = vault.salt;
+                        sessionKey = await deriveKey(pwd, vaultSalt);
+                        const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv: vault.iv }, sessionKey, vault.data);
+                        db = JSON.parse(new TextDecoder().decode(dec));
+                        unlockUI(); refreshUI();
+                    }
+                } catch (e) { 
+                    alert("Acesso Negado: Chave Inválida."); 
+                    pwdInput.value = ''; btn.innerText = "Acessar Carteira"; btn.disabled = false; 
+                }
+            }, 100);
+        }
+
+        function unlockUI() { 
+            document.getElementById('authOverlay').style.display = 'none'; 
+            document.getElementById('mainApp').style.display = 'block'; 
+            lucide.createIcons(); 
+        }
+
+        function toggleModal(id) { 
+            const m = document.getElementById(id); 
+            m.style.display = m.style.display === 'none' ? 'flex' : 'none'; 
+            lucide.createIcons(); 
+        }
+
+        // --- 5. EXPORTAÇÃO E IMPORTAÇÃO DE SEGURANÇA ---
+        async function exportVault() {
+            const v = await getFromDB(); if (!v) return;
+            const data = { app: "GP", ver: "5.0", payload: { data: bufToB64(v.data), iv: bufToB64(v.iv), salt: bufToB64(v.salt) } };
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
+            a.download = `Cofre_GestaoPro_${new Date().getTime()}.gpro`; 
+            a.click();
+        }
+
+        async function importVault(e) {
+            const f = e.target.files[0]; if (!f) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const j = JSON.parse(ev.target.result);
+                    if (j.app !== "GP") throw new Error();
+                    await saveToDB({ data: b64ToBuf(j.payload.data), iv: b64ToBuf(j.payload.iv), salt: b64ToBuf(j.payload.salt) });
+                    location.reload();
+                } catch (err) { alert("Backup inválido."); }
+            };
+            reader.readAsText(f);
+        }
+
+        // --- 6. GESTÃO FINANCEIRA ---
+        const saveIncome = debounce((v) => { db.income = parseFloat(v) || 0; encryptAndSave(); });
+        document.getElementById('incomeInput').addEventListener('input', e => saveIncome(e.target.value));
+
+        function setTab(t) {
+            db.tab = t;
+            ['fixo', 'planejado', 'poupanca'].forEach(x => {
+                document.getElementById(`tab-${x}`).className = `flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all tap-active ${db.tab === x ? 'tab-active-' + x : 'text-slate-500'}`;
+            });
+            document.getElementById('mainSubmitBtn').className = `px-7 rounded-2xl flex items-center justify-center shadow-lg tap-active ${t==='fixo'?'bg-indigo-600':t==='planejado'?'bg-amber-600':'bg-cyan-600'}`;
+            document.getElementById('parcelaArea').style.display = t === 'planejado' ? 'block' : 'none';
+            if (t === 'poupanca') document.getElementById('catInput').value = 'Investimento';
+            encryptAndSave();
+        }
+
+        function addItem() {
+            const di = document.getElementById('descInput'), vi = document.getElementById('valInput'), ci = document.getElementById('catInput').value, pc = parseInt(document.getElementById('parcelaCount').value) || 1;
+            if (!di.value || isNaN(parseFloat(vi.value))) return;
+            db.items.unshift({ id: Date.now(), desc: di.value.trim(), val: db.tab === 'planejado' ? parseFloat(vi.value) / pc : parseFloat(vi.value), type: db.tab, cat: ci, date: new Date().toLocaleDateString('pt-BR'), paid: false });
+            di.value = ''; vi.value = ''; encryptAndSave();
+        }
+        function togglePaid(id) { db.items = db.items.map(i => i.id === id ? {...i, paid: !i.paid} : i); encryptAndSave(); }
+        function deleteItem(id) { if(confirm("Apagar permanentemente?")) { db.items = db.items.filter(i => i.id !== id); encryptAndSave(); } }
+        function resetData() { if(confirm("CUIDADO: Destruir banco de dados local?")) { indexedDB.deleteDatabase(DB_NAME); location.reload(); } }
+
+        // --- 7. RENDERIZAÇÃO DA INTERFACE ---
+        let chartInst = null;
+        function refreshUI() {
+            const f = db.items.filter(i => i.type === 'fixo').reduce((a,b) => a + b.val, 0);
+            const p = db.items.filter(i => i.type === 'planejado').reduce((a,b) => a + b.val, 0);
+            const s = db.items.filter(i => i.type === 'poupanca').reduce((a,b) => a + b.val, 0);
+            const tot = f + p + s;
+            const bal = db.income - tot;
+            
+            document.getElementById('topBalance').innerText = `R$ ${bal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('topBalance').className = `text-xl font-black ${bal < 0 ? 'text-rose-500' : 'text-emerald-500'}`;
+            document.getElementById('totalFixed').innerText = `R$ ${f.toFixed(0)}`;
+            document.getElementById('totalPlanned').innerText = `R$ ${p.toFixed(0)}`;
+            document.getElementById('totalSavings').innerText = `R$ ${s.toFixed(0)}`;
+            document.getElementById('usageBar').style.width = db.income > 0 ? `${Math.min((tot/db.income)*100, 100)}%` : '0%';
+            document.getElementById('pctText').innerText = db.income > 0 ? `${((tot/db.income)*100).toFixed(0)}%` : '0%';
+            
+            if (db.updatedAt > 0) {
+                const d = new Date(db.updatedAt);
+                document.getElementById('lastUpdatedLabel').innerText = `Save: ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+            }
+
+            const list = document.getElementById('list'); list.innerHTML = '';
+            db.items.forEach(i => {
+                const div = document.createElement('div'); 
+                div.className = `glass p-4 rounded-3xl flex items-center justify-between border-l-4 border-${i.type==='fixo'?'indigo':i.type==='planejado'?'amber':'cyan'}-500 animate-item mb-3 shadow-lg`;
+                div.innerHTML = `<div class="flex items-center gap-3 overflow-hidden">
+                    <button onclick="togglePaid(${i.id})" class="w-10 h-10 rounded-2xl flex items-center justify-center border transition-all ${i.paid ? 'bg-emerald-500 border-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'bg-slate-950 border-white/5 text-slate-600'}">
+                        <i data-lucide="${i.paid ? 'check' : 'clock'}" class="w-5 h-5"></i></button>
+                    <div class="overflow-hidden"><p class="text-sm font-bold truncate ${i.paid?'text-slate-500 line-through font-normal':'text-white'}">${escapeHTML(i.desc)}</p>
+                    <p class="text-[8px] font-black text-slate-500 uppercase">${escapeHTML(i.cat)} • ${i.date}</p></div></div>
+                    <div class="flex items-center gap-2"><p class="font-black text-sm">R$ ${i.val.toLocaleString('pt-BR')}</p>
+                    <button onclick="deleteItem(${i.id})" class="p-3 text-slate-700 hover:text-rose-500 tap-active transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div>`;
+                list.appendChild(div);
+            });
+
+            const canvas = document.getElementById('chartCanvas');
+            if (chartInst) { chartInst.destroy(); chartInst = null; }
+            chartInst = new Chart(canvas, { 
+                type: 'doughnut', 
+                data: { datasets: [{ data: [f, p, s, Math.max(0, bal)], backgroundColor: ['#6366f1', '#f59e0b', '#06b6d4', '#10b981'], borderWidth: 0, cutout: '88%', borderRadius: 15 }] }, 
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: { duration: 800 } } 
+            });
+            lucide.createIcons();
+        }
+
+        window.onload = async () => {
+            const v = await getFromDB(); 
+            if (!v) document.getElementById('authBtn').innerText = "Criar Carteira Blindada";
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
